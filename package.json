@@ -1,0 +1,22 @@
+{
+  "name": "rssgenerators",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jsdom": "^16.2.5",
+    "@vercel/node": "^1.8.4"
+  },
+  "dependencies": {
+    "feed": "^4.2.1",
+    "fp-fetch": "^0.1.1",
+    "fp-ts": "^2.8.5",
+    "jsdom": "^16.4.0",
+    "node-fetch": "^2.6.1"
+  }
+}
