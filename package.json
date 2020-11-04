@@ -10,13 +10,16 @@
   "license": "ISC",
   "devDependencies": {
     "@types/jsdom": "^16.2.5",
+    "@types/mongodb": "^3.5.32",
     "@vercel/node": "^1.8.4"
   },
   "dependencies": {
-    "feed": "^4.2.1",
     "fp-fetch": "^0.1.1",
     "fp-ts": "^2.8.5",
+    "io-ts": "^2.2.12",
     "jsdom": "^16.4.0",
-    "node-fetch": "^2.6.1"
+    "mongodb": "^3.6.2",
+    "node-fetch": "^2.6.1",
+    "telegraf": "^3.38.0"
   }
 }
