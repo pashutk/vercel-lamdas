@@ -15,7 +15,7 @@ export const telegraf = (t: string, o?: TelegrafOptions) => new Telegraf(t, o);
 
 export const telegram = (t: string, o?: TelegramOptions) => new Telegram(t, o);
 
-type ChatIdT = string | number;
+export type ChatIdT = string | number;
 
 export const sendMessage = (
   chatId: ChatIdT,

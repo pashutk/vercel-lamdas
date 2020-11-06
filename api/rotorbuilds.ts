@@ -16,16 +16,12 @@ import * as RT from "fp-ts/ReaderTask";
 import * as RA from "fp-ts/ReadonlyArray";
 import { ConstructorOptions, JSDOM } from "jsdom";
 import * as mongo from "../mongo";
-import { FilterQuery } from "mongodb";
+import { Collection, FilterQuery } from "mongodb";
 import * as Eq from "fp-ts/lib/Eq";
-import { sendPhoto, telegram } from "../tg";
+import { sendPhoto, telegram, ChatIdT } from "../tg";
 import { Extra } from "telegraf";
 
 const jsdom = (o: ConstructorOptions) => (s: string) => new JSDOM(s, o);
-
-const ioResponse = (response: NowResponse) => (statusCode: number) => <A>(
-  a: A
-): IO.IO<NowResponse> => () => response.status(statusCode).send(a);
 
 const MONGO_URI = process.env.MONGO_URI;
 const pageUrl = () => "https://rotorbuilds.com/builds";
@@ -58,20 +54,24 @@ const getLatestBuilds = (
 ): TE.TaskEither<Error, ReadonlyArray<RBPost>> =>
   pipe(
     url,
+    // load page html
     fetchText,
+    TE.map(jsdom({ url })),
+
+    // get post items
+    TE.map((dom) =>
+      Array.from(dom.window.document.querySelectorAll("#act_list > div"))
+    ),
+
+    // for every item get rbpost data
     TE.map(
-      flow(
-        jsdom({ url }),
-        (dom) =>
-          Array.from(dom.window.document.querySelectorAll("#act_list > div")),
-        // Looks like there should be a code which validate if markup is of for parsing purposes
-        RA.map((el) => ({
-          img: el.querySelector("img").src,
-          link: el.querySelector("a").href,
-          name: el.querySelector(".act-title").textContent,
-          author: el.querySelector(".act-user").textContent,
-        }))
-      )
+      // Looks like there should be a code which validate if markup is ok for parsing purposes
+      RA.map((el) => ({
+        img: el.querySelector("img").src,
+        link: el.querySelector("a").href,
+        name: el.querySelector(".act-title").textContent,
+        author: el.querySelector(".act-user").textContent,
+      }))
     )
   );
 
@@ -95,6 +95,43 @@ const rbPostEq: Eq.Eq<RBPost> = Eq.getStructEq({
   link: Eq.eqString,
 });
 
+const sendRbPost = (tgToken: string) => (chatId: ChatIdT) => (post: RBPost) =>
+  pipe(
+    telegram(tgToken),
+    sendPhoto(
+      chatId,
+      post.img,
+      // I have no idea what's going on with Extra here
+      // @ts-ignore
+      Extra.caption(
+        `<b>${post.name}</b>\n${post.author}\n\n<a href="${post.link}">${post.link}</a>`
+      ).HTML(true)
+    )
+  );
+
+const foldHandlerResponse = <E, A>() =>
+  RTE.fold<HandlerContext, E, A, NowResponse>(
+    (e) => ({ response }) =>
+      T.fromIO(
+        pipe(
+          Console.error(e),
+          IO.chain(() => () => {
+            return response.status(500).send("Internal server error");
+          })
+        )
+      ),
+    (s) => ({ response }) =>
+      T.fromIO(
+        pipe(
+          Console.log(s),
+          IO.chain(() => () => {
+            response.setHeader("Content-Type", "application/json");
+            return response.status(200).send(s);
+          })
+        )
+      )
+  );
+
 export default handler(
   pipe(
     // get latest posts
@@ -104,65 +141,37 @@ export default handler(
     RTE.chainTaskEitherK((posts) =>
       useMongo(
         flow(
-          // filter out posts that already sent to channel
+          // get mongo collection of existing posts
           mongo.db(dbName()),
           mongo.collection<RBPost>(collectionName()),
-          (collection) =>
-            pipe(
-              collection,
-              mongo.find(existingPostsQuery(posts)),
-              TE.map(RA.fromArray),
-              TE.map((existingPosts) =>
-                RA.difference(rbPostEq)(existingPosts)(posts)
-              ),
-              // send them to tg
-              TE.chainFirst(
-                flow(
-                  RA.map((post) =>
-                    pipe(
-                      telegram(telegramToken()),
-                      sendPhoto(
-                        chatId(),
-                        post.img,
-                        // I have no idea what's going on with Extra here
-                        // @ts-ignore
-                        Extra.caption(
-                          `<b>${post.name}</b>\n${post.author}\n\n<a href="${post.link}">${post.link}</a>`
-                        ).HTML(true)
-                      )
-                    )
-                  ),
-                  RA.sequence(TE.taskEitherSeq)
-                )
-              ),
-              // and finally save them to db
-              TE.chainFirst((posts) =>
-                RA.isNonEmpty(posts)
-                  ? mongo.insertMany(posts)(collection)
-                  : TE.right({})
+          // send Collection<RBPost> to Reader_<Collection<RBPost>, _>
+          pipe(
+            RTE.right<Collection<RBPost>, never, void>(undefined),
+            // filter out posts that already sent to channel
+            RTE.chain(() => flow(mongo.find(existingPostsQuery(posts)))),
+            RTE.map(RA.fromArray),
+            RTE.map((existingPosts) =>
+              RA.difference(rbPostEq)(existingPosts)(posts)
+            ),
+            // here we have readonly array of new posts
+            // send them to tg
+            RTE.chainFirst((posts) => () =>
+              pipe(
+                posts,
+                RA.map(sendRbPost(telegramToken())(chatId())),
+                RA.sequence(TE.taskEitherSeq)
               )
+            ),
+            // and finnaly save them to db
+            RTE.chainFirst((posts) => (collection) =>
+              RA.isNonEmpty(posts)
+                ? mongo.insertMany(posts)(collection)
+                : TE.right({})
             )
+          )
         )
       )
     ),
-    RTE.fold(
-      (e) => ({ response }) =>
-        T.fromIO(
-          pipe(
-            Console.error(e),
-            IO.chain(() => ioResponse(response)(500)("Internal server error"))
-          )
-        ),
-      (s) => ({ response }) =>
-        T.fromIO(
-          pipe(
-            Console.log(s),
-            IO.chain(() => () => {
-              response.setHeader("Content-Type", "application/json");
-              return response.status(200).send(s);
-            })
-          )
-        )
-    )
+    foldHandlerResponse()
   )
 );
