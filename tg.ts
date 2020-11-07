@@ -20,7 +20,7 @@ export type ChatIdT = string | number;
 export const sendMessage = (
   chatId: ChatIdT,
   text: string,
-  extra: ExtraEditMessage
+  extra?: ExtraEditMessage
 ) => (ti: Telegram): TE.TaskEither<TelegramError, Message> =>
   TE.tryCatch(
     () => ti.sendMessage(chatId, text, extra),
@@ -30,7 +30,7 @@ export const sendMessage = (
 export const sendPhoto = (
   chatId: ChatIdT,
   photo: InputFile,
-  extra: ExtraPhoto
+  extra?: ExtraPhoto
 ) => (ti: Telegram): TE.TaskEither<TelegramError, MessagePhoto> =>
   TE.tryCatch(
     () => ti.sendPhoto(chatId, photo, extra),

@@ -1,6 +1,7 @@
 import {
   Collection,
   CollectionInsertManyOptions,
+  CommonOptions,
   Db,
   FilterQuery,
   FindOneOptions,
@@ -66,5 +67,13 @@ export const insertMany = <A>(
 ) => (c: Collection<A>) =>
   TE.tryCatch(
     () => c.insertMany(RA.toArray(ds), o),
+    (e: MongoError) => e
+  );
+
+export const deleteMany = <A>(q: FilterQuery<A>, o?: CommonOptions) => (
+  c: Collection<A>
+) =>
+  TE.tryCatch(
+    () => c.deleteMany(q, o),
     (e: MongoError) => e
   );
