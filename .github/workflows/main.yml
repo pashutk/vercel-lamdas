@@ -33,3 +33,4 @@ jobs:
           url: https://rssgenerators.vercel.app/api/flo-careers
           # Request Method
           method: GET
+          timeout: 30000
