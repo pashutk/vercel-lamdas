@@ -122,7 +122,7 @@ const sendJobPost = (tgToken: string) => (chatId: ChatIdT) => (post: JobPost) =>
       chatId,
       `<b>${post.name}</b>\n${
         RA.isNonEmpty(post.categories) ? post.categories.join(" – ") : ""
-      }\n${post.location}`,
+      }\n${post.location}\n\n<a href=${post.link}>${post.link}</a>`,
       // I have no idea what's going on with Extra here
       // @ts-ignore
       Extra.HTML(true)
